@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Detail KK {{ kk.no_kk }} | OCR Kartu Keluarga{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('daftar_kk') }}">Daftar KK</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ kk.no_kk }}</li>
+    </ol>
+</nav>
+
+<div class="kk-card p-4 shadow-sm mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div>
+            <span class="badge text-bg-light border kk-mono mb-1">No. KK: {{ kk.no_kk }}</span>
+            <h1 class="h4 fw-bold mb-0">{{ kk.nama_kepala_keluarga }}</h1>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('edit_kk', kk_id=kk.id) }}" class="btn btn-sm btn-outline-secondary">
+                Edit Identitas KK
+            </a>
+            <form
+                action="{{ url_for('hapus_kk', kk_id=kk.id) }}"
+                method="post"
+                class="d-inline"
+                data-confirm="Hapus KK {{ kk.no_kk }}? Seluruh data anggota keluarga di dalamnya juga akan ikut terhapus."
+            >
+                <button type="submit" class="btn btn-sm btn-outline-danger">Hapus KK</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="row g-3 pt-2 border-top">
+        <div class="col-md-6 col-lg-4">
+            <div class="kk-label-muted">Alamat</div>
+            <div>{{ kk.alamat or "-" }}</div>
+        </div>
+        <div class="col-md-3 col-lg-2">
+            <div class="kk-label-muted">RT/RW</div>
+            <div>{{ kk.rt_rw or "-" }}</div>
+        </div>
+        <div class="col-md-3 col-lg-3">
+            <div class="kk-label-muted">Desa/Kelurahan</div>
+            <div>{{ kk.desa_kelurahan or "-" }}</div>
+        </div>
+        <div class="col-md-4 col-lg-3">
+            <div class="kk-label-muted">Kecamatan</div>
+            <div>{{ kk.kecamatan or "-" }}</div>
+        </div>
+        <div class="col-md-4 col-lg-4">
+            <div class="kk-label-muted">Kabupaten/Kota</div>
+            <div>{{ kk.kabupaten_kota or "-" }}</div>
+        </div>
+        <div class="col-md-2 col-lg-2">
+            <div class="kk-label-muted">Kode Pos</div>
+            <div>{{ kk.kode_pos or "-" }}</div>
+        </div>
+        <div class="col-md-6 col-lg-6">
+            <div class="kk-label-muted">Provinsi</div>
+            <div>{{ kk.provinsi or "-" }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h2 class="h5 fw-bold mb-0">Anggota Keluarga ({{ anggota_list|length }})</h2>
+    <a href="{{ url_for('tambah_anggota', kk_id=kk.id) }}" class="btn btn-kk-primary btn-sm">
+        + Tambah Anggota
+    </a>
+</div>
+
+{% if anggota_list %}
+    <div class="kk-card shadow-sm overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>No</th>
+                        <th>NIK</th>
+                        <th>Nama Lengkap</th>
+                        <th>Jenis Kelamin</th>
+                        <th>Tempat Lahir</th>
+                        <th>Tanggal Lahir</th>
+                        <th>Agama</th>
+                        <th>Pendidikan</th>
+                        <th>Jenis Pekerjaan</th>
+                        <th>Status Perkawinan</th>
+                        <th>Status Hubungan</th>
+                        <th>Kewarganegaraan</th>
+                        <th>Nama Ayah</th>
+                        <th>Nama Ibu</th>
+                        <th class="text-end">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in anggota_list %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td class="kk-mono fw-semibold">{{ m.nik }}</td>
+                        <td class="fw-semibold">{{ m.nama_lengkap }}</td>
+                        <td>{{ m.jenis_kelamin or "-" }}</td>
+                        <td>{{ m.tempat_lahir or "-" }}</td>
+                        <td>{{ m.tanggal_lahir or "-" }}</td>
+                        <td>{{ m.agama or "-" }}</td>
+                        <td>{{ m.pendidikan or "-" }}</td>
+                        <td>{{ m.jenis_pekerjaan or "-" }}</td>
+                        <td>{{ m.status_perkawinan or "-" }}</td>
+                        <td>{{ m.status_hubungan_dalam_keluarga or "-" }}</td>
+                        <td>{{ m.kewarganegaraan or "-" }}</td>
+                        <td>{{ m.nama_ayah or "-" }}</td>
+                        <td>{{ m.nama_ibu or "-" }}</td>
+                        <td class="text-end text-nowrap">
+                            <a href="{{ url_for('edit_anggota', kk_id=kk.id, anggota_id=m.id) }}" class="btn btn-sm btn-outline-secondary">
+                                Edit
+                            </a>
+                            <form
+                                action="{{ url_for('hapus_anggota', kk_id=kk.id, anggota_id=m.id) }}"
+                                method="post"
+                                class="d-inline"
+                                data-confirm="Hapus anggota {{ m.nama_lengkap }} (NIK {{ m.nik }})?"
+                            >
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Hapus</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% else %}
+    <div class="kk-card p-4 text-center shadow-sm">
+        <p class="text-muted mb-3">Belum ada anggota keluarga terdaftar pada KK ini.</p>
+        <a href="{{ url_for('tambah_anggota', kk_id=kk.id) }}" class="btn btn-kk-primary btn-sm">
+            + Tambah Anggota Pertama
+        </a>
+    </div>
+{% endif %}
+{% endblock %}

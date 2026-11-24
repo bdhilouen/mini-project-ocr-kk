@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Input Gambar KK | OCR Kartu Keluarga{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="kk-card p-4 shadow-sm">
+            <h1 class="h3 fw-bold mb-2">Upload Gambar Kartu Keluarga</h1>
+            <p class="text-muted mb-4">
+                Unggah foto atau hasil pindai Kartu Keluarga (KK). Sistem akan membaca identitas KK serta daftar anggota keluarga menggunakan OCR, lalu menampilkannya untuk Anda periksa sebelum disimpan.
+            </p>
+
+            <form id="upload-form" action="{{ url_for('upload_kk') }}" method="post" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="kk_image" class="form-label fw-semibold">Pilih File Gambar KK</label>
+                    <input
+                        class="form-control"
+                        type="file"
+                        id="kk_image"
+                        name="kk_image"
+                        accept=".jpg,.jpeg,.png,.webp"
+                        required
+                    >
+                    <div class="form-text">Format yang didukung: JPG, JPEG, PNG, atau WEBP (maksimal 10 MB).</div>
+                </div>
+
+                <div id="upload-preview-wrapper" class="mb-4 d-none text-center">
+                    <p class="small text-muted mb-2 text-start fw-semibold">Pratinjau Gambar:</p>
+                    <img id="upload-preview-img" class="kk-image-preview" alt="Pratinjau Kartu Keluarga">
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <button id="upload-submit-btn" type="submit" class="btn btn-kk-primary px-4">
+                        Proses OCR
+                    </button>
+                    <a href="{{ url_for('konfirmasi_manual') }}" class="btn btn-outline-secondary">
+                        Input Manual Tanpa Upload
+                    </a>
+                    <a href="{{ url_for('daftar_kk') }}" class="btn btn-outline-dark ms-auto">
+                        Lihat Daftar KK
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

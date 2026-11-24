@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if mode == 'edit' %}Edit Anggota Keluarga{% else %}Tambah Anggota Keluarga{% endif %} | OCR Kartu Keluarga
+{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('daftar_kk') }}">Daftar KK</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('detail_kk', kk_id=kk.id) }}">{{ kk.no_kk }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">
+            {% if mode == 'edit' %}Edit Anggota{% else %}Tambah Anggota{% endif %}
+        </li>
+    </ol>
+</nav>
+
+<div class="kk-card p-4 shadow-sm">
+    <h1 class="h4 fw-bold mb-1">
+        {% if mode == 'edit' %}Edit Anggota Keluarga{% else %}Tambah Anggota Keluarga{% endif %}
+    </h1>
+    <p class="text-muted mb-3">KK Nomor <span class="kk-mono fw-semibold">{{ kk.no_kk }}</span> ({{ kk.nama_kepala_keluarga }})</p>
+
+    {% if errors %}
+    <div class="alert alert-danger" role="alert">
+        <ul class="mb-0">
+            {% for err in errors %}
+            <li>{{ err }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <form
+        action="{% if mode == 'edit' %}{{ url_for('edit_anggota', kk_id=kk.id, anggota_id=anggota.id) }}{% else %}{{ url_for('tambah_anggota', kk_id=kk.id) }}{% endif %}"
+        method="post"
+    >
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label for="nik" class="form-label fw-semibold">NIK <span class="text-danger">*</span></label>
+                <input type="text" class="form-control kk-mono" id="nik" name="nik" value="{{ anggota.nik or '' }}" maxlength="16" inputmode="numeric" placeholder="16 digit angka" required>
+            </div>
+            <div class="col-md-5">
+                <label for="nama_lengkap" class="form-label fw-semibold">Nama Lengkap <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="nama_lengkap" name="nama_lengkap" value="{{ anggota.nama_lengkap or '' }}" required>
+            </div>
+            <div class="col-md-3">
+                <label for="jenis_kelamin" class="form-label fw-semibold">Jenis Kelamin</label>
+                <select class="form-select" id="jenis_kelamin" name="jenis_kelamin">
+                    <option value="">-- Pilih --</option>
+                    {% for opt in jenis_kelamin_options %}
+                    <option value="{{ opt }}" {% if anggota.jenis_kelamin == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                    {% if anggota.jenis_kelamin and anggota.jenis_kelamin not in jenis_kelamin_options %}
+                    <option value="{{ anggota.jenis_kelamin }}" selected>{{ anggota.jenis_kelamin }}</option>
+                    {% endif %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="tempat_lahir" class="form-label fw-semibold">Tempat Lahir</label>
+                <input type="text" class="form-control" id="tempat_lahir" name="tempat_lahir" value="{{ anggota.tempat_lahir or '' }}">
+            </div>
+            <div class="col-md-4">
+                <label for="tanggal_lahir" class="form-label fw-semibold">Tanggal Lahir</label>
+                <input type="text" class="form-control" id="tanggal_lahir" name="tanggal_lahir" value="{{ anggota.tanggal_lahir or '' }}" placeholder="DD-MM-YYYY">
+            </div>
+            <div class="col-md-4">
+                <label for="agama" class="form-label fw-semibold">Agama</label>
+                <input type="text" class="form-control" id="agama" name="agama" list="list-agama" value="{{ anggota.agama or '' }}">
+            </div>
+            <div class="col-md-4">
+                <label for="pendidikan" class="form-label fw-semibold">Pendidikan</label>
+                <input type="text" class="form-control" id="pendidikan" name="pendidikan" value="{{ anggota.pendidikan or '' }}">
+            </div>
+            <div class="col-md-4">
+                <label for="jenis_pekerjaan" class="form-label fw-semibold">Jenis Pekerjaan</label>
+                <input type="text" class="form-control" id="jenis_pekerjaan" name="jenis_pekerjaan" value="{{ anggota.jenis_pekerjaan or '' }}">
+            </div>
+            <div class="col-md-4">
+                <label for="status_perkawinan" class="form-label fw-semibold">Status Perkawinan</label>
+                <input type="text" class="form-control" id="status_perkawinan" name="status_perkawinan" list="list-status-perkawinan" value="{{ anggota.status_perkawinan or '' }}">
+            </div>
+            <div class="col-md-4">
+                <label for="status_hubungan_dalam_keluarga" class="form-label fw-semibold">Status Hubungan Dalam Keluarga</label>
+                <input type="text" class="form-control" id="status_hubungan_dalam_keluarga" name="status_hubungan_dalam_keluarga" list="list-hubungan" value="{{ anggota.status_hubungan_dalam_keluarga or '' }}">
+            </div>
+            <div class="col-md-2">
+                <label for="kewarganegaraan" class="form-label fw-semibold">Kewarganegaraan</label>
+                <input type="text" class="form-control" id="kewarganegaraan" name="kewarganegaraan" list="list-kewarganegaraan" value="{{ anggota.kewarganegaraan or 'WNI' }}">
+            </div>
+            <div class="col-md-3">
+                <label for="nama_ayah" class="form-label fw-semibold">Nama Ayah</label>
+                <input type="text" class="form-control" id="nama_ayah" name="nama_ayah" value="{{ anggota.nama_ayah or '' }}">
+            </div>
+            <div class="col-md-3">
+                <label for="nama_ibu" class="form-label fw-semibold">Nama Ibu</label>
+                <input type="text" class="form-control" id="nama_ibu" name="nama_ibu" value="{{ anggota.nama_ibu or '' }}">
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mt-4">
+            <button type="submit" class="btn btn-kk-primary px-4">
+                {% if mode == 'edit' %}Simpan Perubahan{% else %}Simpan Anggota{% endif %}
+            </button>
+            <a href="{{ url_for('detail_kk', kk_id=kk.id) }}" class="btn btn-outline-secondary">Batal</a>
+        </div>
+    </form>
+</div>
+
+<datalist id="list-agama">
+    {% for opt in agama_options %}<option value="{{ opt }}">{% endfor %}
+</datalist>
+<datalist id="list-status-perkawinan">
+    {% for opt in status_perkawinan_options %}<option value="{{ opt }}">{% endfor %}
+</datalist>
+<datalist id="list-hubungan">
+    {% for opt in hubungan_options %}<option value="{{ opt }}">{% endfor %}
+</datalist>
+<datalist id="list-kewarganegaraan">
+    {% for opt in kewarganegaraan_options %}<option value="{{ opt }}">{% endfor %}
+</datalist>
+{% endblock %}
