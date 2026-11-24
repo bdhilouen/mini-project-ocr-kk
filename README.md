@@ -61,3 +61,9 @@ mini_project_citra/
 ```powershell
 python -m unittest discover -s tests -v
 ```
+
+## Anggota Kelompok 13
+
+- Alma' Abdhillah (J0403241065)
+- Ben Azaria (J0403241135)
+- Dzaka Abiyyu Azhari (J0403241159)

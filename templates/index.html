@@ -5,29 +5,59 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-8">
-        <div class="kk-card p-4 shadow-sm">
-            <h1 class="h3 fw-bold mb-2">Upload Gambar Kartu Keluarga</h1>
-            <p class="text-muted mb-4">
+        <div class="kk-card p-3 p-md-4 shadow-sm">
+            <h1 class="h4 fw-bold mb-1">Upload Gambar Kartu Keluarga</h1>
+            <p class="text-muted small mb-3">
                 Unggah foto atau hasil pindai Kartu Keluarga (KK). Sistem akan membaca identitas KK serta daftar anggota keluarga menggunakan OCR, lalu menampilkannya untuk Anda periksa sebelum disimpan.
             </p>
 
             <form id="upload-form" action="{{ url_for('upload_kk') }}" method="post" enctype="multipart/form-data">
                 <div class="mb-3">
-                    <label for="kk_image" class="form-label fw-semibold">Pilih File Gambar KK</label>
-                    <input
-                        class="form-control"
-                        type="file"
-                        id="kk_image"
-                        name="kk_image"
-                        accept=".jpg,.jpeg,.png,.webp"
-                        required
+                    <label for="kk_image" class="form-label fw-semibold">File Gambar KK</label>
+                    <div
+                        id="upload-dropzone"
+                        class="kk-dropzone"
+                        role="button"
+                        tabindex="0"
+                        aria-label="Seret dan lepas gambar KK di sini atau klik untuk memilih file"
                     >
-                    <div class="form-text">Format yang didukung: JPG, JPEG, PNG, atau WEBP (maksimal 10 MB).</div>
-                </div>
+                        <input
+                            class="visually-hidden"
+                            type="file"
+                            id="kk_image"
+                            name="kk_image"
+                            accept=".jpg,.jpeg,.png,.webp"
+                        >
 
-                <div id="upload-preview-wrapper" class="mb-4 d-none text-center">
-                    <p class="small text-muted mb-2 text-start fw-semibold">Pratinjau Gambar:</p>
-                    <img id="upload-preview-img" class="kk-image-preview" alt="Pratinjau Kartu Keluarga">
+                        <button
+                            id="upload-remove-btn"
+                            type="button"
+                            class="kk-dropzone-remove d-none"
+                            aria-label="Hapus file dari kolom upload"
+                            title="Hapus file"
+                        >
+                            &times;
+                        </button>
+
+                        <div id="upload-empty-state" class="kk-dropzone-empty">
+                            <div class="kk-dropzone-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                            </div>
+                            <p class="fw-bold fs-5 mb-1">Seret &amp; lepas gambar KK di sini</p>
+                            <p class="text-muted kk-mono mb-0">atau klik untuk memilih file (JPG, JPEG, PNG, WEBP, maks. 10 MB)</p>
+                        </div>
+
+                        <div id="upload-preview-wrapper" class="kk-dropzone-preview d-none">
+                            <img id="upload-preview-img" class="kk-image-preview" alt="Pratinjau Kartu Keluarga">
+                            <div id="upload-file-meta" class="kk-mono small fw-semibold mt-2 text-break"></div>
+                            <div class="small text-muted mt-1">Klik area ini untuk mengganti gambar.</div>
+                        </div>
+                    </div>
+                    <div id="upload-error" class="text-danger small mt-2 d-none" role="alert"></div>
                 </div>
 
                 <div class="d-flex flex-wrap gap-2">
