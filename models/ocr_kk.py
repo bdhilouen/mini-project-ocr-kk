@@ -35,7 +35,7 @@ _RIGHT_HEADER_LABELS = (
 )
 
 _LEFT_HEADER_LABELS = (
-    ("nama_kepala_keluarga", (r"nama\s+kepala\s+keluarga", r"kepala\s+keluarga")),
+    ("nama_kepala_keluarga", (r"nama\s+kepala\s+keluarga", r"nama\s+\S*\s*keluarga", r"kepala\s+keluarga")),
     (
         "desa_kelurahan",
         (
@@ -114,16 +114,25 @@ def _clean_digits(text: str) -> str:
 
 
 def _extract_16_digit_candidate(text: str) -> str:
-    """Find a 16-digit KK/NIK number in text, cleaning digit confusions on digit-heavy runs."""
-    direct = re.search(r"\b\d{16}\b", text)
+    """Find a 16-digit KK/NIK number in text, including runs glued to adjacent text."""
+    direct = re.search(r"\d{16}", text)
     if direct:
         return direct.group(0)
 
-    # Collapse spaces/dashes within numeric runs like "3273 0123 4567 8901" or "3273O123..."
-    for chunk in re.findall(r"[0-9OoQDIIl|SsBZz\-\s]{14,24}", text):
-        digits = _clean_digits(chunk)
-        if len(digits) == 16:
-            return digits
+    # Match 16-character digit-like runs even when glued to adjacent column text (e.g. "B204124809750007]PEREMPUAN").
+    for m in re.finditer(r"[0-9OoQDIl|SsBZz]{16}", text):
+        raw = m.group(0)
+        if sum(ch.isdigit() for ch in raw) >= 12:
+            digits = _clean_digits(raw)
+            if len(digits) == 16:
+                return digits
+
+    # Collapse spaces/dashes within numeric runs like "3273 0123 4567 8901"
+    for chunk in re.findall(r"[0-9OoQDIl|SsBZz\-\s]{16,24}", text):
+        if sum(ch.isdigit() for ch in chunk) >= 12:
+            digits = _clean_digits(chunk)
+            if len(digits) == 16:
+                return digits
 
     digits = _clean_digits(text)
     if len(digits) == 16:
@@ -132,7 +141,7 @@ def _extract_16_digit_candidate(text: str) -> str:
 
 
 def _strip_label_value(text: str) -> str:
-    return re.sub(r"^[\s:.\-]+", "", text).strip()
+    return re.sub(r"^[\s:.\-\[\]|{}]+", "", text).strip()
 
 
 def _normalize_rt_rw(text: str) -> str:
@@ -152,28 +161,64 @@ def _normalize_tanggal(text: str) -> str:
     cleaned = text.strip()
     if not cleaned:
         return ""
-    match = re.search(r"(\d{1,2})\s*[-/.\s]\s*(\d{1,2})\s*[-/.\s]\s*(\d{4})", cleaned)
+    match = re.search(r"([0-9OoIl|]{1,2})\s*[-/.\s]\s*([0-9OoIl|]{1,2})\s*[-/.\s]\s*([0-9OoIl|]{4})", cleaned)
     if match:
-        day, month, year = match.groups()
-        return f"{day.zfill(2)}-{month.zfill(2)}-{year}"
+        day = _clean_digits(match.group(1)).zfill(2)
+        month = _clean_digits(match.group(2)).zfill(2)
+        year = _clean_digits(match.group(3))
+        if len(day) == 2 and len(month) == 2 and len(year) == 4:
+            return f"{day}-{month}-{year}"
     return cleaned
 
 
 def _normalize_jenis_kelamin(text: str) -> str:
     upper = text.upper()
-    if "LAKI" in upper:
+    if re.search(r"LAKI[\s\-]*LAKI", upper) or "LAKI" in upper:
         return "LAKI-LAKI"
     if "PEREMPUAN" in upper or "WANITA" in upper:
         return "PEREMPUAN"
-    return text.strip()
+    return ""
 
 
 def _normalize_agama(text: str) -> str:
-    upper = re.sub(r"[^A-Z]", "", text.upper())
+    upper = text.upper()
+    if re.search(r"[\[\|I1]?SLAM", upper):
+        return "ISLAM"
+    letters = re.sub(r"[^A-Z]", "", upper)
     for key, canonical in _AGAMA_MAP.items():
-        if key in upper:
+        if key in letters:
             return canonical
-    return text.strip()
+    return ""
+
+
+def _normalize_pendidikan(text: str) -> str:
+    cleaned = _clean_cell_placeholder(text)
+    if not cleaned:
+        return ""
+    compact = re.sub(r"[^A-Z0-9]", "", cleaned.upper())
+    if "DIPLOMAIV" in compact and "STRATAI" in compact:
+        return "DIPLOMA IV/STRATA I"
+    if re.fullmatch(r"SL[TI1][AN]?SEDERAJAT", compact):
+        return "SLTA/SEDERAJAT"
+    if re.fullmatch(r"SLTP[I1]?SEDERAJAT", compact):
+        return "SLTP/SEDERAJAT"
+    return cleaned
+
+
+def _normalize_pekerjaan(text: str) -> str:
+    cleaned = _clean_cell_placeholder(text)
+    if not cleaned:
+        return ""
+    compact = re.sub(r"[^A-Z]", "", cleaned.upper())
+    if "MENGURUSRUMAHTANGGA" in compact:
+        return "MENGURUS RUMAH TANGGA"
+    if "PELAJAR" in compact and "MAHASISWA" in compact:
+        return "PELAJAR/MAHASISWA"
+    if "KARYAWANSWASTA" in compact:
+        return "KARYAWAN SWASTA"
+    if "BELUMTIDAKBEKERJA" in compact:
+        return "BELUM/TIDAK BEKERJA"
+    return cleaned
 
 
 def _normalize_boxes(raw_results: List[Any]) -> List[Dict[str, Any]]:
@@ -265,12 +310,15 @@ def _detect_table1_header(lines: List[Dict[str, Any]], median_h: float) -> Tuple
         "nik",
         "jenis kelamin",
         "kelamin",
-        "tempat lahir",
-        "tanggal lahir",
+        "katamin",
+        "kalamin",
+        "tempat",
+        "tanggal",
+        "tanggai",
         "agama",
         "pendidikan",
-        "jenis pekerjaan",
         "pekerjaan",
+        "pekarjaan",
     )
     for idx, line in enumerate(lines):
         low = line["text"].lower()
@@ -290,7 +338,9 @@ def _detect_table1_header(lines: List[Dict[str, Any]], median_h: float) -> Tuple
                 or bool(_extract_16_digit_candidate(next_line["text"]))
                 or any(d in next_low for d in ("laki-laki", "perempuan", "islam", "kristen", "katolik", "hindu", "buddha"))
             )
-            if not looks_like_data and any(w in next_low for w in ("kelamin", "lahir", "pekerjaan", "lengkap", "nik")):
+            if not looks_like_data and any(
+                w in next_low for w in ("kelamin", "katamin", "lahir", "lahlr", "pekerjaan", "pekarjaan", "lengkap", "nik")
+            ):
                 band_lines.append(next_line)
 
         band_boxes = [b for ln in band_lines for b in ln["boxes"]]
@@ -305,7 +355,7 @@ def _detect_table1_header(lines: List[Dict[str, Any]], median_h: float) -> Tuple
         for box in band_boxes_sorted:
             t = box["text"].lower().strip()
             cx = box["cx"]
-            if re.fullmatch(r"no\.?", t) and "nik" not in cols:
+            if re.fullmatch(r"[\[\|]?no\.?", t) and "nik" not in cols:
                 no_col_x = cx
             elif "nama" in t and "lengkap" in t:
                 cols["nama_lengkap"] = cx
@@ -313,19 +363,26 @@ def _detect_table1_header(lines: List[Dict[str, Any]], median_h: float) -> Tuple
                 cols["nama_lengkap"] = cx
             elif re.search(r"\bnik\b", t):
                 cols["nik"] = cx
-            elif "kelamin" in t or t == "jenis":
-                if "jenis_kelamin" not in cols and ("kelamin" in t or ("nik" in cols and cx > cols["nik"] and "agama" not in cols)):
+            elif "pekerjaan" in t or "pekarjaan" in t:
+                cols["jenis_pekerjaan"] = cx
+            elif "kelamin" in t or "katamin" in t or "kalamin" in t or t == "jenis":
+                if "jenis_kelamin" not in cols and (
+                    "kelamin" in t
+                    or "katamin" in t
+                    or "kalamin" in t
+                    or ("nik" in cols and cx > cols["nik"] and "agama" not in cols)
+                ):
                     cols["jenis_kelamin"] = cx
-                elif "pekerjaan" not in t and "jenis_kelamin" in cols and "agama" in cols:
+                elif "jenis_kelamin" in cols and "agama" in cols:
                     cols["jenis_pekerjaan"] = cx
             elif "tempat" in t:
                 cols["tempat_lahir"] = cx
-            elif "tanggal" in t:
+            elif "tanggal" in t or "tanggai" in t:
                 cols["tanggal_lahir"] = cx
-            elif "lahir" in t:
-                if "tempat_lahir" in cols and abs(cx - cols["tempat_lahir"]) < 40:
+            elif "lahir" in t or "lahlr" in t:
+                if "tempat_lahir" in cols and abs(cx - cols["tempat_lahir"]) < 60:
                     cols["tempat_lahir"] = (cols["tempat_lahir"] + cx) / 2.0
-                elif "tanggal_lahir" in cols and abs(cx - cols["tanggal_lahir"]) < 40:
+                elif "tanggal_lahir" in cols and abs(cx - cols["tanggal_lahir"]) < 60:
                     cols["tanggal_lahir"] = (cols["tanggal_lahir"] + cx) / 2.0
                 elif "tempat_lahir" not in cols:
                     cols["tempat_lahir"] = cx
@@ -335,8 +392,6 @@ def _detect_table1_header(lines: List[Dict[str, Any]], median_h: float) -> Tuple
                 cols["agama"] = cx
             elif "pendidikan" in t:
                 cols["pendidikan"] = cx
-            elif "pekerjaan" in t:
-                cols["jenis_pekerjaan"] = cx
 
         return idx, y1, y2, cols, no_col_x
     return None, 0.0, 0.0, {}, None
@@ -346,11 +401,19 @@ def _detect_table2_header(lines: List[Dict[str, Any]], start_idx: int, median_h:
     keywords = (
         "status perkawinan",
         "perkawinan",
+        "perkew",
         "hubungan",
-        "kewarganegaraan",
+        "kewarg",
+        "warganeg",
+        "dokumen",
+        "dokuman",
+        "imigrasi",
+        "orang tua",
         "paspor",
         "kitap",
+        "kitae",
         "ayah",
+        "ayeh",
         "ibu",
     )
     for idx in range(start_idx, len(lines)):
@@ -362,17 +425,32 @@ def _detect_table2_header(lines: List[Dict[str, Any]], start_idx: int, median_h:
 
         band_lines = [line]
         for look_ahead in (1, 2):
-            if idx + look_ahead < len(lines) and (lines[idx + look_ahead]["cy"] - line["cy"]) <= 2.2 * median_h:
+            if idx + look_ahead < len(lines) and (lines[idx + look_ahead]["cy"] - line["cy"]) <= 2.4 * median_h:
                 next_line = lines[idx + look_ahead]
                 next_low = next_line["text"].lower()
                 looks_like_data = (
                     bool(re.match(r"^\d{1,2}\b", next_low))
-                    or any(d in next_low for d in ("wni", "wna", "kepala keluarga", "istri", "anak", "kawin"))
-                    and "status perkawinan" not in next_low
-                    and "tanggal perkawinan" not in next_low
+                    or (
+                        bool(re.search(r"\b(?:wni|wna|kepala keluarga|istri|anak|kawin)\b", next_low))
+                        and "perkawinan" not in next_low
+                        and "perkew" not in next_low
+                    )
                 )
                 if not looks_like_data and any(
-                    w in next_low for w in ("perkawinan", "dalam keluarga", "paspor", "kitap", "ayah", "ibu", "hubungan")
+                    w in next_low
+                    for w in (
+                        "perkawinan",
+                        "perkew",
+                        "dalam keluarga",
+                        "delam keluarga",
+                        "paspor",
+                        "kitap",
+                        "kitae",
+                        "ayah",
+                        "ayeh",
+                        "ibu",
+                        "hubungan",
+                    )
                 ):
                     band_lines.append(next_line)
 
@@ -385,9 +463,9 @@ def _detect_table2_header(lines: List[Dict[str, Any]], start_idx: int, median_h:
         for box in sorted(band_boxes, key=lambda b: (b["cx"], b["cy"])):
             t = box["text"].lower().strip()
             cx = box["cx"]
-            if re.fullmatch(r"no\.?", t) and "status_perkawinan" not in cols:
+            if re.fullmatch(r"[\[\|i]?no\.?", t) and "status_perkawinan" not in cols:
                 no_col_x = cx
-            elif "status" in t and "perkawinan" in t:
+            elif ("status" in t and "perkawinan" in t) or t == "status" or "perkew" in t:
                 cols["status_perkawinan"] = cx
             elif "tanggal" in t and "perkawinan" in t:
                 cols["_tanggal_perkawinan"] = cx
@@ -396,17 +474,17 @@ def _detect_table2_header(lines: List[Dict[str, Any]], start_idx: int, median_h:
                     cols["status_perkawinan"] = cx
                 else:
                     cols["_tanggal_perkawinan"] = cx
-            elif "hubungan" in t or "dalam keluarga" in t:
+            elif "hubungan" in t or "dalam keluarga" in t or "delam keluarga" in t:
                 cols["status_hubungan_dalam_keluarga"] = cx
-            elif "kewarganegaraan" in t or "warganegara" in t:
+            elif "kewarg" in t or "warganeg" in t:
                 cols["kewarganegaraan"] = cx
             elif "paspor" in t:
                 cols["_paspor"] = cx
-            elif "kitap" in t:
+            elif "kitap" in t or "kitas" in t or "kitae" in t:
                 cols["_kitap"] = cx
-            elif "ayah" in t:
+            elif "ayah" in t or "ayeh" in t:
                 cols["nama_ayah"] = cx
-            elif "ibu" in t:
+            elif re.search(r"\bibu\b", t):
                 cols["nama_ibu"] = cx
 
         return idx, y1, y2, cols, no_col_x
@@ -446,10 +524,54 @@ def _assign_line_to_columns(
 
 
 def _clean_cell_placeholder(value: str) -> str:
-    stripped = value.strip()
+    stripped = re.sub(r"^[\[\]|{}\s]+|[\[\]|{}\s]+$", "", value)
     if stripped in {"-", "--", "---", "—", "_"}:
         return ""
     return stripped
+
+
+def _extract_status_perkawinan(text: str) -> str:
+    upper = text.upper()
+    for pat, canonical in (
+        (r"BELUM\s*KAWIN", "BELUM KAWIN"),
+        (r"CERAI\s*HIDUP", "CERAI HIDUP"),
+        (r"CERAI\s*MATI", "CERAI MATI"),
+        (r"KAWIN\s*BELUM\s*TERCATAT", "KAWIN BELUM TERCATAT"),
+        (r"KAWIN\s*TERCATAT", "KAWIN TERCATAT"),
+        (r"KAWIN", "KAWIN"),
+    ):
+        if re.search(pat, upper):
+            return canonical
+    return ""
+
+
+def _extract_hubungan_keluarga(text: str) -> str:
+    upper = text.upper()
+    for pat, canonical in (
+        (r"KEPALA\s*KELUARGA", "KEPALA KELUARGA"),
+        (r"ORANG\s*TUA", "ORANG TUA"),
+        (r"FAMILI\s*LAIN", "FAMILI LAIN"),
+        (r"MENANTU", "MENANTU"),
+        (r"MERTUA", "MERTUA"),
+        (r"PEMBANTU", "PEMBANTU"),
+        (r"SUAMI", "SUAMI"),
+        (r"ISTRI", "ISTRI"),
+        (r"ANAK", "ANAK"),
+        (r"CUCU", "CUCU"),
+    ):
+        if re.search(pat, upper):
+            return canonical
+    return ""
+
+
+def _extract_tempat_after_gender(text: str) -> str:
+    """Recover tempat_lahir when OCR glues it right after LAKI-LAKI or PEREMPUAN."""
+    match = re.search(r"(?:PEREMPUAN|LAKI[\s\-]*LAKI)[\s\]\|]*([A-Z]{3,}(?:\s+[A-Z]{2,})?)", text.upper())
+    if match:
+        candidate = match.group(1).strip()
+        if candidate not in {"ISLAM", "KRISTEN", "KATOLIK", "HINDU", "BUDDHA", "WNI", "WNA"}:
+            return candidate
+    return ""
 
 
 def _parse_header_identitas(
@@ -582,18 +704,41 @@ def parse_kk_ocr_results(
                 continue
 
             member = empty_anggota()
-            for key in ("nama_lengkap", "tempat_lahir", "pendidikan", "jenis_pekerjaan"):
-                if key in raw_vals:
-                    member[key] = _clean_cell_placeholder(raw_vals[key])
-            if "nik" in raw_vals:
-                nik_cand = _extract_16_digit_candidate(raw_vals["nik"])
-                member["nik"] = nik_cand or _clean_cell_placeholder(raw_vals["nik"])
-            if "jenis_kelamin" in raw_vals:
-                member["jenis_kelamin"] = _normalize_jenis_kelamin(_clean_cell_placeholder(raw_vals["jenis_kelamin"]))
-            if "tanggal_lahir" in raw_vals:
-                member["tanggal_lahir"] = _normalize_tanggal(_clean_cell_placeholder(raw_vals["tanggal_lahir"]))
-            if "agama" in raw_vals:
-                member["agama"] = _normalize_agama(_clean_cell_placeholder(raw_vals["agama"]))
+            member["nama_lengkap"] = _clean_cell_placeholder(raw_vals.get("nama_lengkap", ""))
+            member["tempat_lahir"] = _clean_cell_placeholder(raw_vals.get("tempat_lahir", ""))
+            member["pendidikan"] = _normalize_pendidikan(raw_vals.get("pendidikan", ""))
+            member["jenis_pekerjaan"] = _normalize_pekerjaan(raw_vals.get("jenis_pekerjaan", ""))
+
+            # De-merge NIK + Jenis Kelamin + Tempat Lahir when OCR glues adjacent cells.
+            middle_text = " ".join(
+                raw_vals.get(k, "") for k in ("nik", "jenis_kelamin", "tempat_lahir") if raw_vals.get(k)
+            )
+            nik_cand = _extract_16_digit_candidate(middle_text) or _extract_16_digit_candidate(line["text"])
+            if nik_cand and nik_cand != identitas["no_kk"]:
+                member["nik"] = nik_cand
+            elif raw_vals.get("nik"):
+                member["nik"] = _clean_cell_placeholder(raw_vals["nik"])
+
+            jk = _normalize_jenis_kelamin(middle_text) or _normalize_jenis_kelamin(line["text"])
+            if jk:
+                member["jenis_kelamin"] = jk
+
+            if not member["tempat_lahir"]:
+                member["tempat_lahir"] = _extract_tempat_after_gender(middle_text)
+
+            # De-merge Tanggal Lahir + Agama (e.g. "15-08-1982[SLAM" or "21-04-2OO4ISLAM").
+            date_agama_text = " ".join(
+                raw_vals.get(k, "") for k in ("tanggal_lahir", "agama") if raw_vals.get(k)
+            )
+            tgl = _normalize_tanggal(date_agama_text) if date_agama_text else ""
+            if re.fullmatch(r"\d{2}-\d{2}-\d{4}", tgl):
+                member["tanggal_lahir"] = tgl
+            elif raw_vals.get("tanggal_lahir"):
+                member["tanggal_lahir"] = _clean_cell_placeholder(raw_vals["tanggal_lahir"])
+
+            agama = _normalize_agama(date_agama_text) or _normalize_agama(line["text"])
+            if agama:
+                member["agama"] = agama
 
             if member["nama_lengkap"] or member["nik"]:
                 t1_rows.append((row_num, member))
@@ -616,6 +761,31 @@ def parse_kk_ocr_results(
                     for k, v in raw_vals.items()
                     if not k.startswith("_")
                 }
+
+                # Short left-aligned father names can fall near the _kitap/_ayah midpoint;
+                # pure alphabetic strings in _kitap belong to nama_ayah (KITAP/KITAS is '-' or alphanumeric with digits).
+                kitap_val = _clean_cell_placeholder(raw_vals.get("_kitap", ""))
+                if not filtered.get("nama_ayah") and kitap_val and re.fullmatch(r"[A-Za-z\s.,']{3,}", kitap_val):
+                    filtered["nama_ayah"] = kitap_val
+
+                # De-merge Status Perkawinan + Status Hubungan + Kewarganegaraan.
+                status_segment = " ".join(
+                    filtered.get(k, "")
+                    for k in ("status_perkawinan", "status_hubungan_dalam_keluarga", "kewarganegaraan")
+                    if filtered.get(k)
+                )
+                if status_segment:
+                    sp = _extract_status_perkawinan(status_segment)
+                    if sp:
+                        filtered["status_perkawinan"] = sp
+                    hub = _extract_hubungan_keluarga(status_segment)
+                    if hub:
+                        filtered["status_hubungan_dalam_keluarga"] = hub
+                    if "WNA" in status_segment.upper():
+                        filtered["kewarganegaraan"] = "WNA"
+                    elif "WNI" in status_segment.upper() or re.search(r"WN\b", status_segment.upper()):
+                        filtered["kewarganegaraan"] = "WNI"
+
                 if any(filtered.values()):
                     t2_rows.append((row_num, filtered))
 
@@ -644,6 +814,14 @@ def parse_kk_ocr_results(
     else:
         anggota_list = _fallback_extract_anggota(lines, identitas["no_kk"])
 
+    # Fallback: Nama Kepala Keluarga matches the head-of-household member (typically row 1).
+    if not identitas["nama_kepala_keluarga"] and anggota_list:
+        kepala = next(
+            (m["nama_lengkap"] for m in anggota_list if "KEPALA KELUARGA" in m.get("status_hubungan_dalam_keluarga", "").upper() and m.get("nama_lengkap")),
+            "",
+        )
+        identitas["nama_kepala_keluarga"] = kepala or anggota_list[0].get("nama_lengkap", "")
+
     return {
         "identitas": identitas,
         "anggota": anggota_list,
@@ -657,7 +835,7 @@ def extract_kk_from_image(image_path: str) -> Dict[str, Any]:
         processed = preprocess_image(image_path)
         height, width = processed.shape[:2]
         reader = _get_reader()
-        raw_results = reader.readtext(processed, detail=1, paragraph=False)
+        raw_results = reader.readtext(processed, detail=1, paragraph=False, width_ths=0.3)
         parsed = parse_kk_ocr_results(raw_results, image_width=width, image_height=height)
         parsed["error"] = None
         return parsed

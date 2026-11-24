@@ -250,6 +250,64 @@ class OcrParserTests(unittest.TestCase):
         self.assertEqual(ident["desa_kelurahan"], "CIHAPIT")
         self.assertEqual(ident["kabupaten_kota"], "KOTA BANDUNG")
 
+    def test_merged_cells_and_two_line_table2_header(self):
+        raw_results = [
+            (_bbox(680, 70, 1120, 110), "No. 3271041205880019", 0.99),
+            (_bbox(110, 180, 172, 200), "Nama", 0.9),
+            (_bbox(219, 180, 243, 200), "na", 0.7),
+            (_bbox(244, 180, 338, 200), "Keluarga", 0.9),
+            (_bbox(402, 180, 662, 200), "BUDI SANTOSO, S Kom.", 0.95),
+            # Table 1 header with OCR typos
+            (_bbox(47, 287, 77, 307), "No", 0.9),
+            (_bbox(226, 287, 360, 307), "Nama Lengkap", 0.9),
+            (_bbox(567, 287, 601, 307), "NIK", 0.9),
+            (_bbox(676, 287, 752, 307), "Katamin", 0.9),
+            (_bbox(825, 287, 944, 307), "Tempat Lahlr", 0.9),
+            (_bbox(1017, 287, 1090, 307), "Tanggai", 0.9),
+            (_bbox(1122, 287, 1186, 307), "Agama", 0.9),
+            (_bbox(1282, 287, 1380, 307), "Pendidikan", 0.9),
+            (_bbox(1532, 287, 1676, 307), "Jenis Pekarjaan", 0.9),
+            # Table 1 merged row
+            (_bbox(80, 350, 200, 370), "SITIAMINAH", 0.9),
+            (_bbox(506, 350, 842, 370), "[3271045203850007  PEREMPUANBOGOR", 0.9),
+            (_bbox(1002, 350, 1166, 370), "12-03-1985[SLAM", 0.9),
+            (_bbox(1206, 350, 1372, 370), "SLIASEDERAJAT", 0.9),
+            (_bbox(1460, 350, 1728, 370), "MENGURUSRUMAHTANGGA", 0.9),
+            # 2-line Table 2 header with OCR typos
+            (_bbox(51, 617, 79, 637), "No", 0.9),
+            (_bbox(121, 617, 181, 637), "Status", 0.9),
+            (_bbox(234, 617, 388, 637), "Status Hubungan", 0.9),
+            (_bbox(403, 617, 564, 637), "[Kewarganagaraant", 0.9),
+            (_bbox(649, 617, 812, 637), "Dokuman Imigrasi", 0.9),
+            (_bbox(1250, 617, 1394, 637), "Nama Orang Tua", 0.9),
+            (_bbox(98, 640, 204, 660), "Perkawinan", 0.9),
+            (_bbox(242, 640, 382, 660), "Delam Keluarga", 0.9),
+            (_bbox(598, 640, 698, 660), "No. Paspor", 0.9),
+            (_bbox(744, 640, 884, 660), "No.KITAEKiTAP", 0.9),
+            (_bbox(1080, 640, 1128, 660), "Ayeh", 0.9),
+            (_bbox(1515, 640, 1547, 660), "Ibu", 0.9),
+            # Table 2 merged row
+            (_bbox(86, 700, 276, 720), "BELUMKAWINANAK", 0.9),
+            (_bbox(406, 700, 448, 720), "WNI", 0.9),
+            (_bbox(898, 700, 1080, 720), "[SLAMET", 0.9),
+            (_bbox(1314, 700, 1394, 720), "HARTINI", 0.9),
+        ]
+        parsed = parse_kk_ocr_results(raw_results, image_width=1800, image_height=1291)
+        self.assertEqual(parsed["identitas"]["nama_kepala_keluarga"], "BUDI SANTOSO, S Kom.")
+        self.assertEqual(len(parsed["anggota"]), 1)
+        m = parsed["anggota"][0]
+        self.assertEqual(m["nik"], "3271045203850007")
+        self.assertEqual(m["jenis_kelamin"], "PEREMPUAN")
+        self.assertEqual(m["tempat_lahir"], "BOGOR")
+        self.assertEqual(m["tanggal_lahir"], "12-03-1985")
+        self.assertEqual(m["agama"], "ISLAM")
+        self.assertEqual(m["pendidikan"], "SLTA/SEDERAJAT")
+        self.assertEqual(m["jenis_pekerjaan"], "MENGURUS RUMAH TANGGA")
+        self.assertEqual(m["status_perkawinan"], "BELUM KAWIN")
+        self.assertEqual(m["status_hubungan_dalam_keluarga"], "ANAK")
+        self.assertEqual(m["nama_ayah"], "SLAMET")
+        self.assertEqual(m["nama_ibu"], "HARTINI")
+
 
 class FlaskAppRoutesTests(unittest.TestCase):
     def setUp(self):
